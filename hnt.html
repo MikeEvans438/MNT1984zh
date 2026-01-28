@@ -1,0 +1,377 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>汉诺塔游戏 - 经典益智挑战</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .disk {
+            transition: all 0.3s ease;
+            border-radius: 8px;
+        }
+        .disk:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .rod {
+            background: linear-gradient(to right, #8B4513, #A0522D);
+            position: relative;
+        }
+        .rod::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 8px;
+            height: 180px;
+            background: linear-gradient(to bottom, #D2691E, #8B4513);
+            border-radius: 4px;
+        }
+        .move-animation {
+            animation: moveDisk 0.5s ease-in-out;
+        }
+        @keyframes moveDisk {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-50px); }
+            100% { transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- 头部导航 -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">
+                <i class="fas fa-chess-rook mr-3 text-indigo-600"></i>
+                汉诺塔游戏
+            </h1>
+            <p class="text-gray-600">经典的递归算法益智游戏</p>
+        </header>
+
+        <!-- 游戏控制面板 -->
+        <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+            <div class="flex flex-wrap gap-4 justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <label class="text-gray-700 font-medium">圆盘数量:</label>
+                    <select id="diskCount" class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </select>
+                </div>
+                <div class="flex gap-3">
+                    <button id="startBtn" class="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-play mr-2"></i>开始游戏
+                </button>
+                    <button id="resetBtn" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-redo mr-2"></i>重新开始
+                </button>
+                    <button id="solveBtn" class="bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-2 rounded-lg transition-colors">
+                    <i class="fas fa-robot mr-2"></i>自动求解
+                </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 游戏状态显示 -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white rounded-2xl shadow-lg p-4 text-center">
+                <div class="text-2xl font-bold text-gray-800" id="moveCount">0</div>
+                <div class="text-gray-600">移动步数</div>
+            </div>
+            <div class="bg-white rounded-2xl shadow-lg p-4 text-center">
+                <div class="text-2xl font-bold text-gray-800" id="timeElapsed">00:00</div>
+                <div class="text-gray-600">用时</div>
+            </div>
+            <div class="bg-white rounded-2xl shadow-lg p-4 text-center">
+                <div class="text-2xl font-bold text-gray-800" id="minMoves">0</div>
+                <div class="text-gray-600">最少步数</div>
+            </div>
+        </div>
+
+        <!-- 游戏主区域 -->
+        <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+            <div class="flex justify-between items-end h-64" id="gameArea">
+                <!-- 三根柱子将通过JavaScript动态生成 -->
+            </div>
+        </div>
+
+        <!-- 游戏规则说明 -->
+        <div class="bg-white rounded-2xl shadow-lg p-6">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">
+                <i class="fas fa-info-circle mr-2 text-blue-500"></i>
+                游戏规则
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h4 class="font-semibold text-gray-700 mb-2">基本规则:</h4>
+                    <ul class="text-gray-600 space-y-1">
+                        <li>• 每次只能移动一个圆盘</li>
+                        <li>• 大盘不能放在小盘上面</li>
+                        <li>• 将所有圆盘从最左柱移动到最右柱</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-gray-700 mb-2">操作说明:</h4>
+                    <ul class="text-gray-600 space-y-1">
+                        <li>• 点击选择要移动的圆盘</li>
+                        <li>• 点击目标柱子完成移动</li>
+                        <li>• 使用最少步数完成挑战</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class HanoiTower {
+            constructor() {
+                this.disks = 3;
+                this.moves = 0;
+                this.startTime = null;
+                this.timer = null;
+                this.selectedDisk = null;
+                this.rods = [[], [], []];
+                this.init();
+            }
+
+            init() {
+                this.setupEventListeners();
+                this.updateDiskCountOptions();
+                this.resetGame();
+            }
+
+            setupEventListeners() {
+                document.getElementById('startBtn').addEventListener('click', () => this.startGame());
+                document.getElementById('resetBtn').addEventListener('click', () => this.resetGame());
+                document.getElementById('solveBtn').addEventListener('click', () => this.solve());
+                document.getElementById('diskCount').addEventListener('change', (e) => {
+                    this.disks = parseInt(e.target.value);
+                    this.resetGame();
+                });
+            }
+
+            updateDiskCountOptions() {
+                const select = document.getElementById('diskCount');
+                select.innerHTML = '';
+                for (let i = 3; i <= 8; i++) {
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.textContent = i + ' 个圆盘';
+                    if (i === 3) option.selected = true;
+                    select.appendChild(option);
+                }
+            }
+
+            startGame() {
+                this.startTime = Date.now();
+                this.updateTimer();
+                this.timer = setInterval(() => this.updateTimer(), 1000);
+                document.getElementById('startBtn').disabled = true;
+            }
+
+            resetGame() {
+                this.moves = 0;
+                this.selectedDisk = null;
+                this.rods = [[], [], []];
+                
+                // 初始化第一根柱子上的圆盘
+                for (let i = this.disks; i >= 1; i--) {
+                    this.rods[0].push(i);
+                }
+                
+                if (this.timer) {
+                    clearInterval(this.timer);
+                    this.timer = null;
+                }
+                
+                this.startTime = null;
+                this.updateDisplay();
+                this.renderGame();
+                document.getElementById('startBtn').disabled = false;
+            }
+
+            renderGame() {
+                const gameArea = document.getElementById('gameArea');
+                gameArea.innerHTML = '';
+                
+                for (let i = 0; i < 3; i++) {
+                    const rodContainer = document.createElement('div');
+                    rodContainer.className = 'flex flex-col items-center h-full';
+                    rodContainer.style.width = '120px';
+                    
+                    const rod = document.createElement('div');
+                    rod.className = 'rod w-16 h-48 rounded-t-lg cursor-pointer';
+                    rod.dataset.rodIndex = i;
+                    rod.addEventListener('click', (e) => this.handleRodClick(e));
+                    
+                    const disksContainer = document.createElement('div');
+                    disksContainer.className = 'flex flex-col-reverse items-center h-40 mb-2';
+                    disksContainer.id = `rod-${i}`;
+                    
+                    // 渲染该柱子上的圆盘
+                    this.rods[i].forEach(diskSize => {
+                        const disk = document.createElement('div');
+                        disk.className = 'disk bg-gradient-to-r from-purple-500 to-pink-500 text-white text-center flex items-center justify-center mb-1 cursor-pointer transition-all duration-300';
+                        disk.style.width = `${20 + diskSize * 15}px`;
+                        disk.style.height = '20px';
+                        disk.textContent = diskSize;
+                        disk.dataset.diskSize = diskSize;
+                        disk.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            this.handleDiskClick(diskSize, i);
+                        });
+                        
+                        disksContainer.appendChild(disk);
+                    });
+                    
+                    const base = document.createElement('div');
+                    base.className = 'w-24 h-4 bg-gray-700 rounded';
+                    
+                    const label = document.createElement('div');
+                    label.className = 'text-center mt-2 font-semibold text-gray-700';
+                    label.textContent = String.fromCharCode(65 + i);
+                    
+                    rodContainer.appendChild(disksContainer);
+                    rodContainer.appendChild(rod);
+                    rodContainer.appendChild(base);
+                    rodContainer.appendChild(label);
+                    gameArea.appendChild(rodContainer);
+                }
+            }
+
+            handleDiskClick(diskSize, rodIndex) {
+                const rod = this.rods[rodIndex];
+                if (rod.length > 0 && rod[rod.length - 1] === diskSize) {
+                    this.selectedDisk = { size: diskSize, rodIndex };
+                    this.highlightValidMoves(rodIndex);
+                }
+            }
+
+            handleRodClick(event) {
+                const rodIndex = parseInt(event.currentTarget.dataset.rodIndex);
+                
+                if (this.selectedDisk) {
+                    this.moveDisk(this.selectedDisk.rodIndex, rodIndex);
+                    this.selectedDisk = null;
+                    this.clearHighlights();
+                }
+            }
+
+            highlightValidMoves(fromRod) {
+                // 实现高亮可移动的柱子
+            }
+
+            clearHighlights() {
+                // 清除高亮效果
+            }
+
+            moveDisk(fromRod, toRod) {
+                if (fromRod === toRod) return;
+                
+                const sourceRod = this.rods[fromRod];
+                const targetRod = this.rods[toRod];
+                
+                if (sourceRod.length === 0) return;
+                
+                const diskToMove = sourceRod[sourceRod.length - 1];
+                
+                // 检查移动是否合法
+                if (targetRod.length > 0 && targetRod[targetRod.length - 1] < diskToMove) {
+                    alert('非法移动：大盘不能放在小盘上面！');
+                    return;
+                }
+                
+                // 执行移动
+                sourceRod.pop();
+                targetRod.push(diskToMove);
+                this.moves++;
+                
+                this.updateDisplay();
+                this.renderGame();
+                
+                // 检查游戏是否完成
+                if (this.rods[2].length === this.disks) {
+                    this.gameComplete();
+                }
+            }
+
+            updateDisplay() {
+                document.getElementById('moveCount').textContent = this.moves;
+                document.getElementById('minMoves').textContent = Math.pow(2, this.disks) - 1;
+            }
+
+            updateTimer() {
+                if (!this.startTime) return;
+                
+                const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+                const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                const seconds = (elapsed % 60).toString().padStart(2, '0');
+                document.getElementById('timeElapsed').textContent = `${minutes}:${seconds}`;
+            }
+
+            gameComplete() {
+                if (this.timer) {
+                    clearInterval(this.timer);
+                }
+                
+                const minMoves = Math.pow(2, this.disks) - 1;
+                let message = `恭喜！你用了 ${this.moves} 步完成了 ${this.disks} 层汉诺塔！`;
+                if (this.moves === minMoves) {
+                    message += '\n完美！你使用了最少步数！';
+                } else {
+                    message += `\n最少步数是 ${minMoves} 步，继续挑战吧！`;
+                }
+                
+                setTimeout(() => {
+                    if (confirm(message + '\n\n是否开始新游戏？')) {
+                        this.disks = Math.min(8, this.disks + 1);
+                        this.updateDiskCountOptions();
+                        this.resetGame();
+                    }
+                }, 500);
+            }
+
+            solve() {
+                if (confirm('确定要让AI自动求解吗？这将展示最优解法的移动过程。')) {
+                    this.autoSolve();
+                }
+            }
+
+            autoSolve() {
+                // 实现自动求解算法
+                const moves = [];
+                const solveRecursive = (n, from, to, aux) => {
+                    if (n === 1) {
+                        moves.push([from, to]);
+                    } else {
+                        solveRecursive(n - 1, from, aux, to);
+                        moves.push([from, to]);
+                        solveRecursive(n - 1, aux, to, from);
+                    }
+                };
+                
+                solveRecursive(this.disks, 0, 2, 1);
+                
+                // 逐步执行移动
+                let step = 0;
+                const executeStep = () => {
+                    if (step < moves.length) {
+                        const [from, to] = moves[step];
+                        this.moveDisk(from, to);
+                        step++;
+                        setTimeout(executeStep, 800);
+                    }
+                };
+                executeStep();
+            }
+        }
+
+        // 初始化游戏
+        document.addEventListener('DOMContentLoaded', () => {
+            new HanoiTower();
+        });
+    </script>
+</body>
+</html>
